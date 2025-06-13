@@ -1,4 +1,4 @@
-📊 Monthly Business Dashboard
+# 📊 Monthly Business Dashboard
 
 An interactive Streamlit dashboard to predict business profits and analyze employee attendance using Form B data.
 
