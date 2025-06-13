@@ -5,7 +5,7 @@ from fpdf import FPDF
 import io
 import os
 
-st.set_page_config(page_title="Monthly Business Dashboard", layout="wide")
+st.set_page_config(page_title="Monthly Business Dashboard", layout="wide", page_icon="📊")
 
 st.title("Monthly Business Dashboard")
 st.markdown("Welcome! This dashboard helps visualize **Profit & Attendance Trends** over the months.")
@@ -129,35 +129,37 @@ elif option == "Profit Calculator":
         st.session_state.profit_log = []
 
     if st.button(f"Calculate Profit for {month}"):
-        salary = actual_salary - pf - esi
-        profit = income - salary - emi - employer_share
+        with st.spinner("Calculating Profit..."):
+            salary = actual_salary - pf - esi
+            profit = income - salary - emi - employer_share
 
-        st.success(f"Net Salary: ₹{salary:,.2f}")
-        st.success(f"Predicted Profit for {month}: ₹{profit:,.2f}")
-        st.markdown("---")
-        st.info("Formula Used: `Profit = Income - (Actual Salary - PF - ESI) - EMI - Employer Share`")
+            st.success(f"Net Salary: ₹{salary:,.2f}")
+            st.success(f"Predicted Profit for {month}: ₹{profit:,.2f}")
+            st.markdown("---")
+            st.info("Formula Used: `Profit = Income - (Actual Salary - PF - ESI) - EMI - Employer Share`")
 
-        st.session_state.profit_log.append({
-            "Month": month,
-            "Income": income,
-            "Actual Salary": actual_salary,
-            "PF": pf,
-            "ESI": esi,
-            "EMI": emi,
-            "Employer Share": employer_share,
-            "Net Salary": salary,
-            "Profit": profit
-        })
+            st.session_state.profit_log.append({
+                "Month": month,
+                "Income": income,
+                "Actual Salary": actual_salary,
+                "PF": pf,
+                "ESI": esi,
+                "EMI": emi,
+                "Employer Share": employer_share,
+                "Net Salary": salary,
+                "Profit": profit
+            })
 
-        df = pd.DataFrame(st.session_state.profit_log)
-        profit_graph = generate_profit_plot(df)
-        att_graph1, att_graph2 = generate_attendance_charts()
-        pdf = generate_full_pdf(st.session_state.profit_log[-1], profit_graph, att_graph1, att_graph2)
+            df = pd.DataFrame(st.session_state.profit_log)
+            profit_graph = generate_profit_plot(df)
+            att_graph1, att_graph2 = generate_attendance_charts()
+            pdf = generate_full_pdf(st.session_state.profit_log[-1], profit_graph, att_graph1, att_graph2)
 
-        st.download_button("Download Full Report PDF", data=pdf, file_name=f"{month}_Report.pdf", mime="application/pdf")
+            st.download_button("Download Full Report PDF", data=pdf, file_name=f"{month}_Report.pdf", mime="application/pdf")
 
-        csv_data = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download All Logs as CSV", data=csv_data, file_name="monthly_profit_log.csv", mime="text/csv")
+            csv_data = df.to_csv(index=False).encode("utf-8")
+            st.download_button("Download All Logs as CSV", data=csv_data, file_name="monthly_profit_log.csv", mime="text/csv")
+
 elif option == "Attendance Insights":
     st.header("📅 Attendance Insights")
     st.markdown("Upload your Form B CSV with at least these columns: 'Name', 'No of Days Worked', 'Total', 'Net Payment'.")
@@ -170,54 +172,55 @@ elif option == "Attendance Insights":
     uploaded_file = st.file_uploader("Upload Form B (CSV only)", type="csv")
 
     if uploaded_file:
-        try:
-            df_raw = pd.read_csv(uploaded_file)
+        with st.spinner("Processing uploaded data..."):
+            try:
+                df_raw = pd.read_csv(uploaded_file)
+                df_raw = df_raw.dropna(how="all").reset_index(drop=True)
+                df_raw.columns = df_raw.columns.str.strip().str.lower()
 
-            # ✅ Clean: Drop fully empty rows safely
-            df_raw = df_raw.dropna(how="all").reset_index(drop=True)
+                col_map = {
+                    "name": "Employee Name",
+                    "no of days worked": "Days Worked",
+                    "total": "Total Earnings",
+                    "net payment": "Net Payment"
+                }
 
-            df_raw.columns = df_raw.columns.str.strip().str.lower()
+                if not set(col_map.keys()).issubset(df_raw.columns):
+                    missing = set(col_map.keys()) - set(df_raw.columns)
+                    st.error(f"❌ Missing column(s): {', '.join(missing)}")
+                    st.stop()
 
-            col_map = {
-                "name": "Employee Name",
-                "no of days worked": "Days Worked",
-                "total": "Total Earnings",
-                "net payment": "Net Payment"
-            }
+                df = df_raw[list(col_map.keys())].copy()
+                df.columns = [col_map[c] for c in df.columns]
+                df = df[~df["Employee Name"].str.lower().str.strip().eq("total")]
 
-            if not set(col_map.keys()).issubset(df_raw.columns):
-                missing = set(col_map.keys()) - set(df_raw.columns)
-                st.error(f"❌ Missing column(s): {', '.join(missing)}")
-                st.stop()
+                df["Days Worked"] = pd.to_numeric(df["Days Worked"], errors="coerce")
+                df["Net Payment"] = pd.to_numeric(df["Net Payment"], errors="coerce")
+                df.dropna(subset=["Employee Name", "Days Worked", "Net Payment"], inplace=True)
 
-            # Extract and rename columns
-            df = df_raw[list(col_map.keys())].copy()
-            df.columns = [col_map[c] for c in df.columns]
+                st.subheader(f"📋 Summary Table – {month_context}")
+                st.dataframe(df, use_container_width=True)
 
-            # ❌ Remove total/summary row
-            df = df[~df["Employee Name"].str.lower().str.strip().eq("total")]
+                st.subheader("📊 Days Worked per Employee")
+                st.bar_chart(df.set_index("Employee Name")["Days Worked"])
 
-            # Ensure numeric values for charts
-            df["Days Worked"] = pd.to_numeric(df["Days Worked"], errors="coerce")
-            df["Net Payment"] = pd.to_numeric(df["Net Payment"], errors="coerce")
+                st.subheader("💰 Net Payment per Employee")
+                st.line_chart(df.set_index("Employee Name")["Net Payment"])
 
-            # Drop rows with missing values
-            df.dropna(subset=["Employee Name", "Days Worked", "Net Payment"], inplace=True)
+                st.subheader("🔍 Filter by Employee")
+                emp = st.selectbox("Select Employee", df["Employee Name"].dropna().unique())
+                st.write(df[df["Employee Name"] == emp])
 
-            st.subheader(f"📋 Summary Table – {month_context}")
-            st.dataframe(df, use_container_width=True)
-
-            st.subheader("📊 Days Worked per Employee")
-            st.bar_chart(df.set_index("Employee Name")["Days Worked"])
-
-            st.subheader("💰 Net Payment per Employee")
-            st.line_chart(df.set_index("Employee Name")["Net Payment"])
-
-            st.subheader("🔍 Filter by Employee")
-            emp = st.selectbox("Select Employee", df["Employee Name"].dropna().unique())
-            st.write(df[df["Employee Name"] == emp])
-
-        except Exception as e:
-            st.error(f"❌ Error reading file: {e}")
+            except Exception as e:
+                st.error(f"❌ Error reading file: {e}")
     else:
         st.info("📎 Please upload your Form B CSV.")
+
+# ✅ Branding Footer
+st.markdown("---")
+st.markdown(
+    "<div style='text-align: center; font-size: 13px;'>"
+    "🛠️ Powered by Streamlit • Built by Akassh"
+    "</div>",
+    unsafe_allow_html=True
+)
