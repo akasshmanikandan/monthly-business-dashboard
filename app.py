@@ -118,47 +118,45 @@ elif option == "Profit Calculator":
     ])
 
     st.subheader(f"Inputs for {month}")
-    income = st.number_input("Estimated Income (₹)", min_value=0, step=10000, value=9000000)
-    actual_salary = st.number_input("Actual Salary (₹)", min_value=2000000, max_value=2500000, step=10000, value=2300000)
-    pf = st.number_input("PF Deduction (₹)", min_value=190000, max_value=250000, step=1000, value=210000)
-    esi = st.number_input("ESI Deduction (₹)", min_value=10000, max_value=18000, step=500, value=15000)
-    emi = st.number_input("EMI (₹)", value=155118)
-    employer_share = st.number_input("Employer Share (₹)", min_value=200000, max_value=300000, step=10000, value=250000)
+    income = st.number_input("Income (₹)", min_value=0, step=10000, placeholder="Enter your income")
+    gross_salary = st.number_input("Gross Salary (₹)", min_value=0, step=10000, placeholder="Enter gross salary")
+    deductions = st.number_input("Deductions (₹)", min_value=0, step=1000, placeholder="PF + ESI deduction")
+    emi = st.number_input("EMI (₹)", min_value=0, step=1000, placeholder="Enter EMI")
+    office_expenses = st.number_input("Office Expenses (₹)", min_value=0, step=1000, placeholder="Enter office expenses")
 
     if "profit_log" not in st.session_state:
         st.session_state.profit_log = []
 
     if st.button(f"Calculate Profit for {month}"):
-        with st.spinner("Calculating Profit..."):
-            salary = actual_salary - pf - esi
-            profit = income - salary - emi - employer_share
+        salary = gross_salary - deductions
+        profit = income - salary - emi - office_expenses
 
-            st.success(f"Net Salary: ₹{salary:,.2f}")
-            st.success(f"Predicted Profit for {month}: ₹{profit:,.2f}")
-            st.markdown("---")
-            st.info("Formula Used: `Profit = Income - (Actual Salary - PF - ESI) - EMI - Employer Share`")
+        st.success(f"Net Salary: ₹{salary:,.2f}")
+        st.success(f"Predicted Profit for {month}: ₹{profit:,.2f}")
+        st.markdown("---")
+        st.info("Formula Used: `Profit = Income - (Gross Salary - Deductions) - EMI - Office Expenses`")
 
-            st.session_state.profit_log.append({
-                "Month": month,
-                "Income": income,
-                "Actual Salary": actual_salary,
-                "PF": pf,
-                "ESI": esi,
-                "EMI": emi,
-                "Employer Share": employer_share,
-                "Net Salary": salary,
-                "Profit": profit
-            })
+        st.session_state.profit_log.append({
+            "Month": month,
+            "Income": income,
+            "Gross Salary": gross_salary,
+            "Deductions": deductions,
+            "EMI": emi,
+            "Office Expenses": office_expenses,
+            "Net Salary": salary,
+            "Profit": profit
+        })
 
-            df = pd.DataFrame(st.session_state.profit_log)
-            profit_graph = generate_profit_plot(df)
-            att_graph1, att_graph2 = generate_attendance_charts()
-            pdf = generate_full_pdf(st.session_state.profit_log[-1], profit_graph, att_graph1, att_graph2)
+        df = pd.DataFrame(st.session_state.profit_log)
+        profit_graph = generate_profit_plot(df)
+        att_graph1, att_graph2 = generate_attendance_charts()
+        pdf = generate_full_pdf(st.session_state.profit_log[-1], profit_graph, att_graph1, att_graph2)
 
-            st.download_button("Download Full Report PDF", data=pdf, file_name=f"{month}_Report.pdf", mime="application/pdf")
+        st.download_button("Download Full Report PDF", data=pdf, file_name=f"{month}_Report.pdf", mime="application/pdf")
 
-            csv_data = df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download All Logs as CSV", data=csv_data, file_name="monthly_profit_log.csv", mime="text/csv")
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download All Logs as CSV", data=csv_data, file_name="monthly_profit_log.csv", mime="text/csv")
+
 
 elif option == "Attendance Insights":
     st.header("📅 Attendance Insights")
